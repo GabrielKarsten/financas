@@ -233,7 +233,7 @@ function Dashboard({expenses,incomes,wallets}){
   );
 }
 
-function AddScreen({user,wallets,onAddExpense,onAddIncome}){
+function AddScreen({user,wallets,onAddExpense,onAddExpenses,onAddIncome}){
   const[type,setType]=useState('expense');
   const[desc,setDesc]=useState('');
   const[date,setDate]=useState(today());
@@ -261,9 +261,21 @@ function AddScreen({user,wallets,onAddExpense,onAddIncome}){
     const val=parseFloat(String(amount).replace(',','.'));
     if(isNaN(val)||val<=0){setFlash({ok:false,msg:'Valor inválido'});return;}
     const rv=showReim&&reimbAmt?parseFloat(String(reimbAmt).replace(',','.'))||0:0;
-    if(type==='income'){await onAddIncome({description:desc.trim(),amount:val,date,month:targetM,category:cat,notes});}
-    else{let d=desc.trim();if(payType==='credit_inst')d+=` ${parseInt(inst)||1}/${parseInt(totInst)||1}`;await onAddExpense({description:d,amount:val,date,month:targetM,wallet:walletId,category:cat,paymentType:payType,dueDate:payType==='pix_future'?dueDate:null,notes,reembolso:rv,reembolsoDesc:rv>0?reimbWho:''});}
-    reset();setFlash({ok:true,msg:`✓ Lançado em ${parseMonth(targetM)}`});setTimeout(()=>setFlash(null),2500);
+    if(type==='income'){
+      await onAddIncome({description:desc.trim(),amount:val,date,month:targetM,category:cat,notes});
+      reset();setFlash({ok:true,msg:`✓ Receita em ${parseMonth(targetM)}`});setTimeout(()=>setFlash(null),2500);
+    } else if(payType==='credit_inst'){
+      const si=parseInt(inst)||1,ti=parseInt(totInst)||si,bm=computeTargetMonth(date,selW,payType),ne=[];
+      for(let i=si;i<=ti;i++){ne.push({id:uid(),description:`${desc.trim()} ${i}/${ti}`,amount:val,date,month:shiftMonth(bm,i-si),wallet:walletId,category:cat,paymentType:payType,dueDate:null,notes,reembolso:i===si?rv:0,reembolsoDesc:''});}
+      await onAddExpenses(ne);
+      reset();
+      const lm=shiftMonth(bm,ti-si);
+      setFlash({ok:true,msg:`✓ ${ti-si+1} parcelas · ${parseMonth(bm)} → ${parseMonth(lm)}`});
+      setTimeout(()=>setFlash(null),3500);
+    } else {
+      await onAddExpense({description:desc.trim(),amount:val,date,month:targetM,wallet:walletId,category:cat,paymentType:payType,dueDate:payType==='pix_future'?dueDate:null,notes,reembolso:rv,reembolsoDesc:rv>0?reimbWho:''});
+      reset();setFlash({ok:true,msg:`✓ Lançado em ${parseMonth(targetM)}`});setTimeout(()=>setFlash(null),2500);
+    }
   };
   return(
     <div style={{padding:'16px 20px 20px',fontFamily:"'DM Sans',system-ui,sans-serif"}}>
@@ -301,6 +313,12 @@ function AddScreen({user,wallets,onAddExpense,onAddIncome}){
           </div>
           {payType==='credit_inst'&&(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}><div><div style={sLbl}>Parcela atual</div><input style={sInput} type="number" min="1" placeholder="ex: 3" value={inst} onChange={e=>setInst(e.target.value)}/></div><div><div style={sLbl}>Total parcelas</div><input style={sInput} type="number" min="1" placeholder="ex: 10" value={totInst} onChange={e=>setTotInst(e.target.value)}/></div></div>)}
           {payType==='pix_future'&&(<div style={{marginBottom:14}}><div style={sLbl}>Data para pagar</div><input type="date" style={sInput} value={dueDate} onChange={e=>setDueDate(e.target.value)}/></div>)}
+          {(payType==='credit'||payType==='credit_inst')&&!selW?.closingDay&&(
+            <div style={{marginBottom:14,padding:'10px 14px',borderRadius:10,background:'rgba(200,168,75,0.07)',border:'1px solid rgba(200,168,75,0.2)'}}>
+              <div style={{fontSize:11,fontWeight:700,color:G,letterSpacing:'0.04em'}}>⚙️ Configure o dia de fechamento</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:3}}>Vá em Config → selecione o cartão → defina o dia de fechamento para detectar a fatura correta automaticamente.</div>
+            </div>
+          )}
           {(payType==='credit'||payType==='credit_inst')&&selW?.closingDay>0&&(
             <div style={{marginBottom:14,padding:'10px 14px',borderRadius:10,background:isDefer?'rgba(192,57,43,0.1)':'rgba(61,153,112,0.1)',border:`1px solid ${isDefer?C.red:C.green}33`}}>
               <div style={{fontSize:11,fontWeight:700,color:isDefer?C.red:C.green,letterSpacing:'0.06em',textTransform:'uppercase'}}>{isDefer?`⚠ Cai em ${parseMonth(targetM)}`:`✓ Fatura de ${parseMonth(targetM)}`}</div>
@@ -514,6 +532,7 @@ function App(){
   const handleLogout=async()=>{setLoggedIn(false);setShowSettings(false);await stSet('fin_session',{loggedIn:false,user:null});};
   const saveWallets=async(nw)=>{const up={...allWallets,[user]:nw};setAllWallets(up);await stSet('fin_wallets',up);setShowSettings(false);};
   const addExpense=async(exp)=>{const l=[...expenses,{...exp,id:uid(),user}];setExpenses(l);await stSet('fin_expenses',l);};
+  const addExpenses=async(exps)=>{const l=[...expenses,...exps.map(e=>({...e,user}))];setExpenses(l);await stSet('fin_expenses',l);};
   const deleteExpense=async(id)=>{const l=expenses.filter(e=>e.id!==id);setExpenses(l);await stSet('fin_expenses',l);};
   const addIncome=async(inc)=>{const l=[...incomes,{...inc,id:uid(),user}];setIncomes(l);await stSet('fin_incomes',l);};
   const deleteIncome=async(id)=>{const l=incomes.filter(i=>i.id!==id);setIncomes(l);await stSet('fin_incomes',l);};
@@ -529,7 +548,7 @@ function App(){
       <Header user={user} month={month} setMonth={setMonth}/>
       <div style={{flex:1,overflowY:'auto'}}>
         {tab==='dashboard'&&<Dashboard expenses={uExp} incomes={uInc} wallets={wallets}/>}
-        {tab==='add'&&<AddScreen user={user} wallets={wallets} onAddExpense={addExpense} onAddIncome={addIncome}/>}
+        {tab==='add'&&<AddScreen user={user} wallets={wallets} onAddExpense={addExpense} onAddExpenses={addExpenses} onAddIncome={addIncome}/>}
         {tab==='reports'&&<ReportsScreen expenses={uExp} incomes={uInc} month={month} wallets={wallets} onExport={()=>setShowExport(true)}/>}
         {tab==='history'&&<HistoryScreen expenses={uExp} incomes={uInc} wallets={wallets} onDelete={deleteExpense} onDeleteIncome={deleteIncome}/>}
       </div>
