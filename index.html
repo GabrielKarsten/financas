@@ -87,8 +87,11 @@ function computeTargetMonth(dateStr,wallet,payType){
   const base=`${y}-${String(m).padStart(2,'0')}`;
   if(payType!=='credit'&&payType!=='credit_inst')return base;
   if(!wallet?.isCredit||!wallet?.closingDay)return base;
-  if(d>wallet.closingDay){const nd=new Date(y,m,1);return`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;}
-  return base;
+  // Até o dia de fechamento → fatura deste mês → pago no MÊS SEGUINTE (+1)
+  // Após o dia de fechamento → fatura do próximo mês → pago em DOIS MESES (+2)
+  const shift=d>wallet.closingDay?2:1;
+  const nd=new Date(y,m-1+shift,1);
+  return`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
 }
 
 function buildWA(user,expenses,incomes,month,wallets){
@@ -146,7 +149,7 @@ function LoginScreen({onLogin}){
       {sel&&(
         <div style={{width:'100%',maxWidth:300,marginBottom:16}}>
           <div style={sLbl}>Senha</div>
-          <input type="password" maxLength={4} placeholder="• • • •" value={pin}
+          <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} placeholder="••••" value={pin}
             onChange={e=>{setPin(e.target.value.replace(/\D/g,''));setErr('');}}
             onKeyDown={e=>e.key==='Enter'&&tryLogin()}
             style={{...sInput,textAlign:'center',fontSize:30,letterSpacing:'0.6em',fontFamily:"'DM Mono',monospace"}} autoFocus/>
@@ -154,7 +157,6 @@ function LoginScreen({onLogin}){
       )}
       {err&&<div style={{color:C.red,fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>{err}</div>}
       <button onClick={tryLogin} style={{...pBtn(sel?GG:'rgba(255,255,255,0.05)',sel?'#070707':C.muted),maxWidth:300}}>Entrar</button>
-      <div style={{fontSize:10,color:C.dim,marginTop:18,letterSpacing:'0.06em'}}>Senha padrão: <span style={{color:G}}>0055</span></div>
     </div>
   );
 }
@@ -253,7 +255,8 @@ function AddScreen({user,wallets,onAddExpense,onAddExpenses,onAddIncome}){
   useEffect(()=>{if(wallets.length&&!wallets.find(w=>w.id===walletId)){const f=wallets[0];setWalletId(f.id);setPayType(f.isCredit?'credit':'pix_now');}},[wallets]);
   const selW=resolveW(wallets,walletId),isCrd=selW?.isCredit;
   const handleW=(id)=>{const w=wallets.find(ww=>ww.id===id);setWalletId(id);if(w?.isCredit&&(payType==='pix_now'||payType==='pix_future'))setPayType('credit');if(!w?.isCredit&&(payType==='credit'||payType==='credit_inst'))setPayType('pix_now');};
-  const targetM=computeTargetMonth(date,selW,payType),natM=dateToMonth(date),isDefer=(payType==='credit'||payType==='credit_inst')&&targetM!==natM;
+  const targetM=computeTargetMonth(date,selW,payType),natM=dateToMonth(date);
+  const isAfterClose=selW?.closingDay>0&&(payType==='credit'||payType==='credit_inst')&&parseInt(date.split('-')[2])>selW.closingDay;
   const payOpts=isCrd?[['credit','💳 Crédito'],['credit_inst','💳 Parcelado']]:[['pix_now','💸 PIX Agora'],['pix_future','📅 PIX Futuro']];
   const reset=()=>{setDesc('');setAmount('');setInst('');setTotInst('');setDueDate('');setNotes('');setReimbAmt('');setShowReim(false);};
   const submit=async()=>{
@@ -320,9 +323,13 @@ function AddScreen({user,wallets,onAddExpense,onAddExpenses,onAddIncome}){
             </div>
           )}
           {(payType==='credit'||payType==='credit_inst')&&selW?.closingDay>0&&(
-            <div style={{marginBottom:14,padding:'10px 14px',borderRadius:10,background:isDefer?'rgba(192,57,43,0.1)':'rgba(61,153,112,0.1)',border:`1px solid ${isDefer?C.red:C.green}33`}}>
-              <div style={{fontSize:11,fontWeight:700,color:isDefer?C.red:C.green,letterSpacing:'0.06em',textTransform:'uppercase'}}>{isDefer?`⚠ Cai em ${parseMonth(targetM)}`:`✓ Fatura de ${parseMonth(targetM)}`}</div>
-              {isDefer&&<div style={{fontSize:10,color:C.muted,marginTop:3}}>Dia {date.split('-')[2]} › fechamento dia {selW.closingDay}</div>}
+            <div style={{marginBottom:14,padding:'10px 14px',borderRadius:10,background:isAfterClose?'rgba(192,57,43,0.1)':'rgba(61,153,112,0.1)',border:`1px solid ${isAfterClose?C.red:C.green}33`}}>
+              <div style={{fontSize:11,fontWeight:700,color:isAfterClose?C.red:C.green,letterSpacing:'0.06em',textTransform:'uppercase'}}>
+                {isAfterClose?`⚠ Após fechamento · cai em ${parseMonth(targetM)}`:`✓ Será pago em ${parseMonth(targetM)}`}
+              </div>
+              <div style={{fontSize:10,color:C.muted,marginTop:3}}>
+                {isAfterClose?`Dia ${date.split('-')[2]} › já passou do fechamento (dia ${selW.closingDay})`:`Fecha dia ${selW.closingDay} · pagamento em ${parseMonth(targetM)}`}
+              </div>
             </div>
           )}
           <div style={{marginBottom:14}}>
