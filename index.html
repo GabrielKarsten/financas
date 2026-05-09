@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Finanças · Gabriel & Mariana</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    html,body{margin:0;padding:0;background:#070707;height:100%;}
+    #root{height:100%;}
+    input:focus,textarea:focus{border-color:rgba(200,168,75,0.55)!important;box-shadow:0 0 0 3px rgba(200,168,75,0.08)!important;outline:none;}
+    input::placeholder,textarea::placeholder{color:#2a2a2a!important;}
+    input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.4) sepia(1) saturate(3) hue-rotate(3deg);opacity:.7;}
+    ::-webkit-scrollbar{display:none;}*{scrollbar-width:none;}
+    ::selection{background:rgba(200,168,75,0.2);color:#fff;}
+  </style>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCO5w1A0lzcECQfrUXCVe0mliGKSPxGIQ4",
+  authDomain:        "financas-971b8.firebaseapp.com",
+  projectId:         "financas-971b8",
+  storageBucket:     "financas-971b8.appspot.com",
+  messagingSenderId: "609814453739",
+  appId:             "1:609814453739:web:8413dd0119ab840600cdae",
+};
+const _app = firebase.initializeApp(FIREBASE_CONFIG);
+const _db  = firebase.firestore();
+const stGet = async (k) => {
+  try { const s=await _db.collection('financas').doc(k).get(); return s.exists?s.data().v:null; } catch { return null; }
+};
+const stSet = async (k, v) => {
+  try { await _db.collection('financas').doc(k).set({v}); } catch {}
+};
+
+const{useState,useEffect}=React;
+const G='#C8A84B',GL='#E5C86A',GD='#9A7832';
+const GG=`linear-gradient(135deg,${GD},${G} 45%,${GL} 68%,${G})`;
+const C={bg:'#070707',card:'#0F0F0F',card2:'#141414',modal:'#0C0C0C',gold:G,goldL:GL,goldD:GD,goldGrad:GG,gBorder:'rgba(200,168,75,0.2)',gBg:'rgba(200,168,75,0.07)',text:'#EFEFEF',muted:'#6A6A6A',dim:'#2E2E2E',green:'#3D9970',red:'#C0392B',border:'rgba(255,255,255,0.06)'};
+const sCard={background:C.card,border:`1px solid ${C.gBorder}`,borderRadius:18,padding:'16px 18px'};
+const sInput={width:'100%',background:C.card2,border:'1px solid rgba(255,255,255,0.09)',borderRadius:12,padding:'13px 16px',color:C.text,fontSize:15,fontFamily:"'DM Sans',system-ui,sans-serif",outline:'none',boxSizing:'border-box'};
+const sLbl={display:'block',fontSize:9,fontWeight:700,letterSpacing:'0.14em',textTransform:'uppercase',color:C.muted,marginBottom:8};
+const pBtn=(bg,col='#070707')=>({width:'100%',background:bg,color:col,border:'none',borderRadius:50,padding:'15px 24px',fontSize:13,fontWeight:800,cursor:'pointer',fontFamily:"'DM Sans',system-ui,sans-serif",letterSpacing:'0.06em',textTransform:'uppercase'});
+const oBtn={width:'100%',background:'transparent',color:G,border:'1.5px solid rgba(200,168,75,0.5)',borderRadius:50,padding:'13px 24px',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:"'DM Sans',system-ui,sans-serif",letterSpacing:'0.06em',textTransform:'uppercase'};
+
+const MONTHS_PT=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const PIN='0055';
+const CARD_COLORS=['#C8A84B','#E5C86A','#B89040','#9A7832','#A8A8A8','#3D9970','#2980B9','#8E44AD','#C0392B','#D35400'];
+const CATEGORIES=['🏠 Moradia','🍽️ Alimentação','🚗 Transporte','💊 Saúde','🎭 Lazer','👕 Vestuário','📚 Educação','📺 Streaming','💳 Empréstimo','🐟 Pesca','📦 Outros'];
+const DEFAULT_WALLETS={
+  gabriel:[
+    {id:'nu_g',label:'Nubank Gabriel',short:'NU Gab.',color:'#C8A84B',isCredit:true,closingDay:0},
+    {id:'nu_2',label:'Nubank /2 (Casal)',short:'NU /2',color:'#B89040',isCredit:true,closingDay:0},
+    {id:'c6_g',label:'C6 Gabriel',short:'C6 Gab.',color:'#E5C86A',isCredit:true,closingDay:0},
+    {id:'c6_m',label:'C6 Mariana (minha parte)',short:'C6 Mari.',color:'#A8A8A8',isCredit:true,closingDay:0},
+    {id:'avista',label:'À Vista / PIX',short:'PIX',color:'#3D9970',isCredit:false,closingDay:0},
+  ],
+  mariana:[
+    {id:'nu_m',label:'Nubank Mariana',short:'NU Mari.',color:'#C8A84B',isCredit:true,closingDay:0},
+    {id:'c6_m2',label:'C6 Mariana',short:'C6 Mari.',color:'#E5C86A',isCredit:true,closingDay:0},
+    {id:'avista_m',label:'À Vista / PIX',short:'PIX',color:'#3D9970',isCredit:false,closingDay:0},
+  ]
+};
+
+const fmt=(v)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+const today=()=>new Date().toISOString().split('T')[0];
+const getMonthKey=()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
+const parseMonth=(ym)=>{if(!ym)return'';const[y,m]=ym.split('-');return`${MONTHS_PT[parseInt(m)-1]} ${y}`;};
+const shiftMonth=(ym,n)=>{const[y,m]=ym.split('-').map(Number);const d=new Date(y,m-1+n,1);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;};
+const fmtDate=(d)=>{if(!d)return'—';const[,m,dd]=d.split('-');return`${dd}/${m}`;};
+const dateToMonth=(d)=>{if(!d)return getMonthKey();const[y,m]=d.split('-');return`${y}-${m}`;};
+const uid=()=>`${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+const netAmt=(e)=>e.amount-(e.reembolso||0);
+const resolveW=(ws,id)=>ws.find(w=>w.id===id)||{id,label:id,short:id.slice(0,8),color:'#555',isCredit:false,closingDay:0};
+const greet=()=>{const h=new Date().getHours();return h<12?'Bom dia':h<18?'Boa tarde':'Boa noite';};
+function computeTargetMonth(dateStr,wallet,payType){
+  if(!dateStr)return getMonthKey();
+  const[y,m,d]=dateStr.split('-').map(Number);
+  const base=`${y}-${String(m).padStart(2,'0')}`;
+  if(payType!=='credit'&&payType!=='credit_inst')return base;
+  if(!wallet?.isCredit||!wallet?.closingDay)return base;
+  if(d>wallet.closingDay){const nd=new Date(y,m,1);return`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;}
+  return base;
+}
+
+function buildWA(user,expenses,incomes,month,wallets){
+  const total=expenses.reduce((s,e)=>s+netAmt(e),0),recs=incomes.reduce((s,i)=>s+i.amount,0);
+  let t=`📊 *RELATÓRIO ${parseMonth(month).toUpperCase()}*\n👤 ${user==='gabriel'?'Gabriel':'Mariana'}\n\n`;
+  t+=`💰 Receitas: *${fmt(recs)}*\n💸 Gastos: *${fmt(total)}*\n📈 Saldo: *${fmt(recs-total)}*\n─────────────────\n`;
+  [...new Set(expenses.map(e=>e.wallet))].forEach(wid=>{
+    const w=resolveW(wallets,wid),we=expenses.filter(e=>e.wallet===wid);
+    t+=`\n*${w.label}* — ${fmt(we.reduce((s,e)=>s+netAmt(e),0))}\n`;
+    we.sort((a,b)=>a.description.localeCompare(b.description)).forEach(e=>{t+=`• ${e.description}: ${fmt(netAmt(e))}${e.reembolso?` _(reimb. ${fmt(e.reembolso)})_`:''}\n`;});
+  });
+  const pix=expenses.filter(e=>e.paymentType==='pix_future');
+  if(pix.length){t+=`\n*📅 PIX Agendados*\n`;pix.forEach(e=>{t+=`• ${e.description}: ${fmt(e.amount)} (${fmtDate(e.dueDate)})\n`;});}
+  if(incomes.length){t+=`\n*💰 Receitas*\n`;incomes.forEach(i=>{t+=`• ${i.description}: ${fmt(i.amount)}\n`;});}
+  return t;
+}
+function buildPDF(user,expenses,incomes,month,wallets){
+  const total=expenses.reduce((s,e)=>s+netAmt(e),0),recs=incomes.reduce((s,i)=>s+i.amount,0),saldo=recs-total;
+  let rows='';
+  [...new Set(expenses.map(e=>e.wallet))].forEach(wid=>{
+    const w=resolveW(wallets,wid),we=expenses.filter(e=>e.wallet===wid).sort((a,b)=>a.description.localeCompare(b.description));
+    rows+=`<tr class="sec"><td colspan="3" style="color:${w.color}">${w.label}</td><td>${fmt(we.reduce((s,e)=>s+netAmt(e),0))}</td></tr>`;
+    we.forEach(e=>{rows+=`<tr><td class="pl">${e.description}</td><td>${fmtDate(e.date)}</td><td>${e.category||''}</td><td>${fmt(netAmt(e))}${e.reembolso?`<br><small style="color:#B89040">reimb.${fmt(e.reembolso)}</small>`:''}${e.dueDate?`<br><small style="color:#3D9970">PIX ${fmtDate(e.dueDate)}</small>`:''}</td></tr>`;});
+  });
+  const pix=expenses.filter(e=>e.paymentType==='pix_future');
+  if(pix.length){rows+=`<tr class="sec"><td colspan="3">📅 PIX Agendados</td><td>${fmt(pix.reduce((s,e)=>s+e.amount,0))}</td></tr>`;pix.forEach(e=>{rows+=`<tr><td class="pl">${e.description}</td><td>${fmtDate(e.dueDate)}</td><td></td><td>${fmt(e.amount)}</td></tr>`;});}
+  if(incomes.length){rows+=`<tr class="sec g"><td colspan="3">💰 Receitas</td><td>${fmt(recs)}</td></tr>`;incomes.forEach(i=>{rows+=`<tr><td class="pl">${i.description}</td><td>${fmtDate(i.date)}</td><td>${i.category||''}</td><td class="g">${fmt(i.amount)}</td></tr>`;});}
+  return`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatório ${parseMonth(month)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#111;color:#eee;padding:32px;max-width:700px;margin:0 auto;font-size:14px}h1{font-size:24px;font-weight:800;color:#C8A84B;margin-bottom:4px;letter-spacing:.1em}.sub{color:#666;font-size:12px;margin-bottom:24px}.sum{display:flex;gap:12px;margin-bottom:28px}.si{flex:1;background:#1a1a1a;border:1px solid rgba(200,168,75,0.2);border-radius:10px;padding:14px}.lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:.1em;margin-bottom:6px}.val{font-size:20px;font-weight:700}table{width:100%;border-collapse:collapse}tr.sec td{font-weight:700;background:#1a1a1a;padding:10px 12px;border-top:1px solid rgba(200,168,75,0.15);font-size:13px}td{padding:8px 12px;border-bottom:1px solid #1a1a1a;vertical-align:top;font-size:13px}td:last-child{text-align:right;white-space:nowrap}small{font-size:11px;display:block}.g{color:#3D9970}.r{color:#C0392B}.pl{padding-left:20px}@media print{body{background:#fff;color:#111}.si{background:#f9f9f9;border-color:#ddd}tr.sec td{background:#f0f0f0}}</style></head><body><h1>FINANÇAS</h1><div class="sub">Relatório ${parseMonth(month)} · ${user==='gabriel'?'Gabriel':'Mariana'} · ${new Date().toLocaleDateString('pt-BR')}</div><div class="sum"><div class="si"><div class="lbl">Receitas</div><div class="val g">${fmt(recs)}</div></div><div class="si"><div class="lbl">Gastos</div><div class="val r">${fmt(total)}</div></div><div class="si"><div class="lbl">Saldo</div><div class="val" style="color:${saldo>=0?'#3D9970':'#C0392B'}">${fmt(saldo)}</div></div></div><table>${rows}</table><script>window.onload=()=>window.print();<\/script></body></html>`;
+}
+
+function LoginScreen({onLogin}){
+  const[sel,setSel]=useState(null);
+  const[pin,setPin]=useState('');
+  const[err,setErr]=useState('');
+  const tryLogin=()=>{if(!sel){setErr('Selecione o usuário');return;}if(pin!==PIN){setErr('Senha incorreta');setPin('');return;}onLogin(sel);};
+  return(
+    <div style={{minHeight:'100vh',background:C.bg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'0 32px',fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <div style={{textAlign:'center',marginBottom:52}}>
+        <div style={{width:60,height:60,borderRadius:'50%',background:C.gBg,border:`1.5px solid ${C.gBorder}`,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 18px',fontSize:26}}>💰</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:G,letterSpacing:'0.22em',textTransform:'uppercase'}}>Finanças</div>
+        <div style={{fontSize:10,color:C.muted,letterSpacing:'0.16em',marginTop:6,textTransform:'uppercase'}}>Gabriel & Mariana</div>
+      </div>
+      <div style={{width:'100%',maxWidth:300,marginBottom:20}}>
+        <div style={sLbl}>Quem é você?</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {[['gabriel','👨‍💼','Gabriel'],['mariana','👩','Mariana']].map(([u,icon,name])=>(
+            <button key={u} onClick={()=>{setSel(u);setErr('');setPin('');}} style={{padding:'22px 10px',border:`1.5px solid ${sel===u?G:'rgba(255,255,255,0.07)'}`,borderRadius:18,cursor:'pointer',background:sel===u?C.gBg:'rgba(255,255,255,0.02)',fontFamily:'inherit',display:'flex',flexDirection:'column',alignItems:'center',gap:8,color:sel===u?G:C.muted,fontWeight:700,fontSize:12,letterSpacing:'0.08em',textTransform:'uppercase',transition:'all 0.2s'}}>
+              <span style={{fontSize:30}}>{icon}</span>
+              {name}
+              {sel===u&&<div style={{width:18,height:2,background:GG,borderRadius:2}}/>}
+            </button>
+          ))}
+        </div>
+      </div>
+      {sel&&(
+        <div style={{width:'100%',maxWidth:300,marginBottom:16}}>
+          <div style={sLbl}>Senha</div>
+          <input type="password" maxLength={4} placeholder="• • • •" value={pin}
+            onChange={e=>{setPin(e.target.value.replace(/\D/g,''));setErr('');}}
+            onKeyDown={e=>e.key==='Enter'&&tryLogin()}
+            style={{...sInput,textAlign:'center',fontSize:30,letterSpacing:'0.6em',fontFamily:"'DM Mono',monospace"}} autoFocus/>
+        </div>
+      )}
+      {err&&<div style={{color:C.red,fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:14}}>{err}</div>}
+      <button onClick={tryLogin} style={{...pBtn(sel?GG:'rgba(255,255,255,0.05)',sel?'#070707':C.muted),maxWidth:300}}>Entrar</button>
+      <div style={{fontSize:10,color:C.dim,marginTop:18,letterSpacing:'0.06em'}}>Senha padrão: <span style={{color:G}}>0055</span></div>
+    </div>
+  );
+}
+
+function Header({user,month,setMonth}){
+  return(
+    <div style={{background:C.bg,padding:'16px 20px 0',flexShrink:0,fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <div style={{marginBottom:14}}>
+        <div style={{fontSize:11,color:C.muted,fontWeight:500,letterSpacing:'0.06em'}}>{greet()},</div>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:24,fontWeight:800,color:G,letterSpacing:'0.05em'}}>{user==='gabriel'?'Gabriel':'Mariana'}</div>
+      </div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingBottom:14,borderBottom:'1px solid rgba(200,168,75,0.1)'}}>
+        <button onClick={()=>setMonth(m=>shiftMonth(m,-1))} style={{background:'transparent',border:`1px solid ${C.border}`,color:C.muted,cursor:'pointer',borderRadius:50,width:34,height:34,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
+        <span style={{fontFamily:"'Syne',sans-serif",fontSize:13,fontWeight:700,color:C.text,letterSpacing:'0.1em',textTransform:'uppercase'}}>{parseMonth(month)}</span>
+        <button onClick={()=>setMonth(m=>shiftMonth(m,1))} style={{background:'transparent',border:`1px solid ${C.border}`,color:C.muted,cursor:'pointer',borderRadius:50,width:34,height:34,fontSize:16,display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({expenses,incomes,wallets}){
+  const total=expenses.reduce((s,e)=>s+netAmt(e),0),recs=incomes.reduce((s,i)=>s+i.amount,0),saldo=recs-total;
+  const actW=[...new Set(expenses.map(e=>e.wallet))].map(id=>resolveW(wallets,id));
+  return(
+    <div style={{padding:'16px 20px 20px',fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <div style={{background:C.card,border:`1px solid ${C.gBorder}`,borderRadius:22,padding:'22px 20px 18px',marginBottom:16,boxShadow:'0 0 60px rgba(200,168,75,0.05)'}}>
+        <div style={{fontSize:9,color:C.muted,fontWeight:700,letterSpacing:'0.18em',textTransform:'uppercase',marginBottom:8}}>Saldo do Mês</div>
+        <div style={{fontFamily:"'DM Mono',monospace",fontSize:36,fontWeight:500,color:saldo>=0?G:C.red,letterSpacing:'-0.02em',marginBottom:20,lineHeight:1}}>{fmt(saldo)}</div>
+        <div style={{display:'flex',borderTop:`1px solid ${C.border}`,paddingTop:14}}>
+          {[['↑ Receitas',recs,C.green],['↓ Gastos',total,C.red]].map(([l,v,color],i)=>(
+            <div key={l} style={{flex:1,borderLeft:i>0?`1px solid ${C.border}`:'none',paddingLeft:i>0?18:0}}>
+              <div style={{fontSize:9,color:C.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:5}}>{l}</div>
+              <div style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,color}}>{fmt(v)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {actW.length>0&&<>
+        <div style={{...sLbl,marginBottom:10}}>Por Carteira</div>
+        {actW.map(w=>{
+          const we=expenses.filter(e=>e.wallet===w.id),wt=we.reduce((s,e)=>s+netAmt(e),0),pct=total>0?(wt/total)*100:0;
+          return(
+            <div key={w.id} style={{...sCard,marginBottom:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                <div style={{display:'flex',alignItems:'center',gap:9}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:w.color,boxShadow:`0 0 7px ${w.color}88`}}/>
+                  <span style={{fontSize:13,fontWeight:600,color:C.text}}>{w.short||w.label}</span>
+                  <span style={{fontSize:10,color:C.dim}}>{we.length}x</span>
+                </div>
+                <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,color:w.color}}>{fmt(wt)}</span>
+              </div>
+              <div style={{background:'rgba(255,255,255,0.04)',borderRadius:50,height:2}}>
+                <div style={{background:w.color,height:'100%',width:`${Math.min(pct,100)}%`,borderRadius:50,opacity:0.8}}/>
+              </div>
+            </div>
+          );
+        })}
+      </>}
+      {expenses.filter(e=>e.paymentType==='pix_future').length>0&&<>
+        <div style={{...sLbl,marginTop:18,marginBottom:10}}>PIX Agendados</div>
+        {expenses.filter(e=>e.paymentType==='pix_future').map(e=>(
+          <div key={e.id} style={{...sCard,marginBottom:8,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div><div style={{fontSize:13,fontWeight:600,color:C.text}}>{e.description}</div><div style={{fontSize:10,color:C.muted,marginTop:3}}>Pagar em {fmtDate(e.dueDate)}</div></div>
+            <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,color:C.green}}>{fmt(e.amount)}</span>
+          </div>
+        ))}
+      </>}
+      {!expenses.length&&!incomes.length&&(
+        <div style={{textAlign:'center',padding:'60px 20px'}}>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:36,color:G,opacity:0.15,marginBottom:16}}>◈</div>
+          <div style={{fontFamily:"'Syne',sans-serif",fontSize:12,fontWeight:700,color:C.muted,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:6}}>Mês em branco</div>
+          <div style={{fontSize:11,color:C.dim}}>Toque em + para registrar</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddScreen({user,wallets,onAddExpense,onAddIncome}){
+  const[type,setType]=useState('expense');
+  const[desc,setDesc]=useState('');
+  const[date,setDate]=useState(today());
+  const[amount,setAmount]=useState('');
+  const[walletId,setWalletId]=useState(wallets[0]?.id||'');
+  const[payType,setPayType]=useState('credit');
+  const[inst,setInst]=useState('');
+  const[totInst,setTotInst]=useState('');
+  const[dueDate,setDueDate]=useState('');
+  const[cat,setCat]=useState('📦 Outros');
+  const[notes,setNotes]=useState('');
+  const[showReim,setShowReim]=useState(false);
+  const[reimbAmt,setReimbAmt]=useState('');
+  const[reimbWho,setReimbWho]=useState('Mariana');
+  const[flash,setFlash]=useState(null);
+
+  useEffect(()=>{if(wallets.length&&!wallets.find(w=>w.id===walletId)){const f=wallets[0];setWalletId(f.id);setPayType(f.isCredit?'credit':'pix_now');}},[wallets]);
+  const selW=resolveW(wallets,walletId),isCrd=selW?.isCredit;
+  const handleW=(id)=>{const w=wallets.find(ww=>ww.id===id);setWalletId(id);if(w?.isCredit&&(payType==='pix_now'||payType==='pix_future'))setPayType('credit');if(!w?.isCredit&&(payType==='credit'||payType==='credit_inst'))setPayType('pix_now');};
+  const targetM=computeTargetMonth(date,selW,payType),natM=dateToMonth(date),isDefer=(payType==='credit'||payType==='credit_inst')&&targetM!==natM;
+  const payOpts=isCrd?[['credit','💳 Crédito'],['credit_inst','💳 Parcelado']]:[['pix_now','💸 PIX Agora'],['pix_future','📅 PIX Futuro']];
+  const reset=()=>{setDesc('');setAmount('');setInst('');setTotInst('');setDueDate('');setNotes('');setReimbAmt('');setShowReim(false);};
+  const submit=async()=>{
+    if(!desc.trim()||!amount){setFlash({ok:false,msg:'Preencha descrição e valor'});return;}
+    const val=parseFloat(String(amount).replace(',','.'));
+    if(isNaN(val)||val<=0){setFlash({ok:false,msg:'Valor inválido'});return;}
+    const rv=showReim&&reimbAmt?parseFloat(String(reimbAmt).replace(',','.'))||0:0;
+    if(type==='income'){await onAddIncome({description:desc.trim(),amount:val,date,month:targetM,category:cat,notes});}
+    else{let d=desc.trim();if(payType==='credit_inst')d+=` ${parseInt(inst)||1}/${parseInt(totInst)||1}`;await onAddExpense({description:d,amount:val,date,month:targetM,wallet:walletId,category:cat,paymentType:payType,dueDate:payType==='pix_future'?dueDate:null,notes,reembolso:rv,reembolsoDesc:rv>0?reimbWho:''});}
+    reset();setFlash({ok:true,msg:`✓ Lançado em ${parseMonth(targetM)}`});setTimeout(()=>setFlash(null),2500);
+  };
+  return(
+    <div style={{padding:'16px 20px 20px',fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <div style={{display:'flex',background:'rgba(255,255,255,0.04)',borderRadius:50,padding:4,gap:4,marginBottom:18}}>
+        {[['expense','💸  Gasto'],['income','💰  Receita']].map(([v,l])=>(
+          <button key={v} onClick={()=>setType(v)} style={{flex:1,border:'none',borderRadius:50,padding:'10px 0',cursor:'pointer',fontFamily:'inherit',fontWeight:700,fontSize:11,letterSpacing:'0.08em',textTransform:'uppercase',background:type===v?(v==='expense'?C.red:C.green):'transparent',color:type===v?'#fff':C.muted,transition:'all 0.2s'}}>{l}</button>
+        ))}
+      </div>
+      {flash&&<div style={{background:flash.ok?'rgba(61,153,112,0.12)':'rgba(192,57,43,0.12)',border:`1px solid ${flash.ok?C.green:C.red}44`,borderRadius:12,padding:'11px 16px',marginBottom:16,color:flash.ok?C.green:C.red,fontWeight:700,textAlign:'center',fontSize:11,letterSpacing:'0.08em',textTransform:'uppercase'}}>{flash.msg}</div>}
+      <div style={sCard}>
+        <div style={{marginBottom:14}}><div style={sLbl}>Descrição *</div><input style={sInput} placeholder="Ex: NETFLIX, MILIUM, SALÁRIO..." value={desc} onChange={e=>setDesc(e.target.value)}/></div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+          <div><div style={sLbl}>Data</div><input type="date" style={sInput} value={date} onChange={e=>setDate(e.target.value)}/></div>
+          <div><div style={sLbl}>Valor R$</div><input style={{...sInput,fontFamily:"'DM Mono',monospace"}} type="number" step="0.01" placeholder="0,00" value={amount} onChange={e=>setAmount(e.target.value)} inputMode="decimal"/></div>
+        </div>
+        {type==='expense'&&<>
+          <div style={{marginBottom:14}}>
+            <div style={sLbl}>Cartão / Carteira</div>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              {wallets.map(w=>(
+                <button key={w.id} onClick={()=>handleW(w.id)} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 14px',border:`1px solid ${walletId===w.id?w.color:C.border}`,borderRadius:12,cursor:'pointer',background:walletId===w.id?`${w.color}10`:'transparent',fontFamily:'inherit',textAlign:'left',transition:'all 0.15s'}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:w.color,boxShadow:walletId===w.id?`0 0 8px ${w.color}88`:undefined}}/>
+                  <span style={{flex:1,fontSize:13,fontWeight:600,color:walletId===w.id?w.color:C.muted}}>{w.label}</span>
+                  {walletId===w.id&&w.closingDay>0&&<span style={{fontSize:10,color:C.muted}}>fecha dia {w.closingDay}</span>}
+                  {walletId===w.id&&<span style={{color:w.color,fontSize:13}}>✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{marginBottom:14}}>
+            <div style={sLbl}>Tipo de pagamento</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+              {payOpts.map(([v,l])=>(<button key={v} onClick={()=>setPayType(v)} style={{padding:'12px 4px',border:`1px solid ${payType===v?G:C.border}`,borderRadius:50,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:700,letterSpacing:'0.04em',background:payType===v?C.gBg:'transparent',color:payType===v?G:C.muted,transition:'all 0.15s'}}>{l}</button>))}
+            </div>
+          </div>
+          {payType==='credit_inst'&&(<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}><div><div style={sLbl}>Parcela atual</div><input style={sInput} type="number" min="1" placeholder="ex: 3" value={inst} onChange={e=>setInst(e.target.value)}/></div><div><div style={sLbl}>Total parcelas</div><input style={sInput} type="number" min="1" placeholder="ex: 10" value={totInst} onChange={e=>setTotInst(e.target.value)}/></div></div>)}
+          {payType==='pix_future'&&(<div style={{marginBottom:14}}><div style={sLbl}>Data para pagar</div><input type="date" style={sInput} value={dueDate} onChange={e=>setDueDate(e.target.value)}/></div>)}
+          {(payType==='credit'||payType==='credit_inst')&&selW?.closingDay>0&&(
+            <div style={{marginBottom:14,padding:'10px 14px',borderRadius:10,background:isDefer?'rgba(192,57,43,0.1)':'rgba(61,153,112,0.1)',border:`1px solid ${isDefer?C.red:C.green}33`}}>
+              <div style={{fontSize:11,fontWeight:700,color:isDefer?C.red:C.green,letterSpacing:'0.06em',textTransform:'uppercase'}}>{isDefer?`⚠ Cai em ${parseMonth(targetM)}`:`✓ Fatura de ${parseMonth(targetM)}`}</div>
+              {isDefer&&<div style={{fontSize:10,color:C.muted,marginTop:3}}>Dia {date.split('-')[2]} › fechamento dia {selW.closingDay}</div>}
+            </div>
+          )}
+          <div style={{marginBottom:14}}>
+            <button onClick={()=>setShowReim(!showReim)} style={{...oBtn,fontSize:11,padding:'8px 16px',width:'auto'}}>{showReim?'▲':'+'} Reembolso / Estorno</button>
+            {showReim&&(
+              <div style={{marginTop:10,padding:'14px',background:C.gBg,borderRadius:12,border:`1px solid ${C.gBorder}`}}>
+                <div style={{fontSize:9,color:G,fontWeight:700,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:12}}>Parte reembolsada</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+                  <div><div style={sLbl}>Valor R$</div><input style={sInput} type="number" step="0.01" placeholder="12,00" value={reimbAmt} onChange={e=>setReimbAmt(e.target.value)} inputMode="decimal"/></div>
+                  <div><div style={sLbl}>Quem paga</div><input style={sInput} placeholder="Mariana" value={reimbWho} onChange={e=>setReimbWho(e.target.value)}/></div>
+                </div>
+                {amount&&reimbAmt&&(()=>{const a=parseFloat(String(amount).replace(',','.'))||0,r=parseFloat(String(reimbAmt).replace(',','.'))||0;return a>0&&r>0?<div style={{fontSize:11,color:C.muted}}>Custo líquido: <span style={{color:G,fontFamily:"'DM Mono',monospace"}}>{fmt(Math.max(a-r,0))}</span></div>:null;})()}
+              </div>
+            )}
+          </div>
+        </>}
+        <div style={{marginBottom:14}}>
+          <div style={sLbl}>Categoria</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+            {CATEGORIES.map(c=>(<button key={c} onClick={()=>setCat(c)} style={{padding:'6px 12px',border:`1px solid ${cat===c?G:C.border}`,borderRadius:50,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:600,background:cat===c?C.gBg:'transparent',color:cat===c?G:C.muted,transition:'all 0.15s'}}>{c}</button>))}
+          </div>
+        </div>
+        <div style={{marginBottom:18}}><div style={sLbl}>Obs. (opcional)</div><input style={sInput} placeholder="Anotação..." value={notes} onChange={e=>setNotes(e.target.value)}/></div>
+        <button onClick={submit} style={pBtn(type==='income'?C.green:GG,type==='income'?'#fff':'#070707')}>+ {type==='income'?'Registrar Receita':'Registrar Gasto'}</button>
+      </div>
+    </div>
+  );
+}
+
+function ReportsScreen({expenses,incomes,month,wallets,onExport}){
+  const total=expenses.reduce((s,e)=>s+netAmt(e),0),recs=incomes.reduce((s,i)=>s+i.amount,0),saldo=recs-total;
+  return(
+    <div style={{padding:'16px 20px 20px',fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,color:G,letterSpacing:'0.1em',textTransform:'uppercase'}}>{parseMonth(month)}</div>
+        <button onClick={onExport} style={{...oBtn,width:'auto',fontSize:11,padding:'7px 14px'}}>📤 Exportar</button>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:18}}>
+        {[['Receitas',recs,C.green],['Gastos',total,C.red],['Saldo',saldo,saldo>=0?G:C.red]].map(([l,v,c])=>(<div key={l} style={{...sCard,textAlign:'center',padding:'12px 8px'}}><div style={{fontSize:9,color:C.muted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{l}</div><div style={{fontFamily:"'DM Mono',monospace",fontSize:12,fontWeight:500,color:c}}>{fmt(v)}</div></div>))}
+      </div>
+      {[...new Set(expenses.map(e=>e.wallet))].map(wid=>{
+        const w=resolveW(wallets,wid),we=expenses.filter(e=>e.wallet===wid).sort((a,b)=>a.description.localeCompare(b.description));
+        return(
+          <div key={wid} style={{...sCard,marginBottom:12,padding:0,overflow:'hidden'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:`1px solid ${C.border}`}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}><div style={{width:7,height:7,borderRadius:'50%',background:w.color,boxShadow:`0 0 6px ${w.color}88`}}/><span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,color:w.color,letterSpacing:'0.1em',textTransform:'uppercase'}}>{w.label}</span></div>
+              <span style={{fontFamily:"'DM Mono',monospace",fontSize:14,fontWeight:500,color:w.color}}>{fmt(we.reduce((s,e)=>s+netAmt(e),0))}</span>
+            </div>
+            {we.map((e,i)=>(
+              <div key={e.id} style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',padding:'10px 16px',borderBottom:i<we.length-1?`1px solid ${C.border}`:'none'}}>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:500,color:C.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{e.description}</div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{fmtDate(e.date)} · {e.category}{e.reembolso?<span style={{color:G}}> · reimb. {fmt(e.reembolso)}</span>:null}</div></div>
+                <div style={{fontFamily:"'DM Mono',monospace",fontSize:13,fontWeight:500,color:C.text,marginLeft:10}}>{fmt(netAmt(e))}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      {incomes.length>0&&(
+        <div style={{...sCard,padding:0,overflow:'hidden'}}>
+          <div style={{display:'flex',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${C.border}`}}><span style={{fontFamily:"'Syne',sans-serif",fontWeight:700,fontSize:11,color:C.green,letterSpacing:'0.1em',textTransform:'uppercase'}}>💰 Receitas</span><span style={{fontFamily:"'DM Mono',monospace",fontSize:14,color:C.green}}>{fmt(recs)}</span></div>
+          {incomes.map((i,idx,arr)=>(<div key={i.id} style={{display:'flex',justifyContent:'space-between',padding:'10px 16px',borderBottom:idx<arr.length-1?`1px solid ${C.border}`:'none'}}><div><div style={{fontSize:13,color:C.text}}>{i.description}</div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{fmtDate(i.date)} · {i.category}</div></div><span style={{fontFamily:"'DM Mono',monospace",fontSize:13,color:C.green}}>{fmt(i.amount)}</span></div>))}
+        </div>
+      )}
+      {!expenses.length&&!incomes.length&&<div style={{textAlign:'center',padding:'48px 20px'}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:12,color:C.muted,letterSpacing:'0.12em',textTransform:'uppercase'}}>Nenhum lançamento</div></div>}
+    </div>
+  );
+}
+
+function HistoryScreen({expenses,incomes,wallets,onDelete,onDeleteIncome}){
+  const[filter,setFilter]=useState('all');
+  const[confirm,setConfirm]=useState(null);
+  const all=[...expenses.map(e=>({...e,_t:'expense'})),...incomes.map(i=>({...i,_t:'income'}))]
+    .filter(x=>filter==='all'||x._t===filter).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return(
+    <div style={{padding:'16px 20px 20px',fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <div style={{display:'flex',background:'rgba(255,255,255,0.04)',borderRadius:50,padding:4,gap:4,marginBottom:16}}>
+        {[['all','Todos'],['expense','Gastos'],['income','Receitas']].map(([v,l])=>(<button key={v} onClick={()=>setFilter(v)} style={{flex:1,padding:'8px 0',border:'none',borderRadius:50,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',background:filter===v?C.card2:'transparent',color:filter===v?G:C.muted,transition:'all 0.15s'}}>{l}</button>))}
+      </div>
+      {all.map(item=>{
+        const disp=item._t==='expense'?netAmt(item):item.amount,w=item._t==='expense'?resolveW(wallets,item.wallet):null;
+        return(
+          <div key={item.id} style={{...sCard,marginBottom:8,display:'flex',alignItems:'center',gap:10}}>
+            <div style={{width:36,height:36,borderRadius:10,background:`${(w?.color||C.green)}12`,border:`1px solid ${(w?.color||C.green)}30`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{item._t==='income'?'💰':item.paymentType==='pix_future'?'📅':item.paymentType==='pix_now'?'💸':'💳'}</div>
+            <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600,color:C.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{item.description}</div><div style={{fontSize:10,color:C.muted,marginTop:2}}>{fmtDate(item.date)} · {item.category}{w&&<span style={{color:w.color}}> · {w.short||w.label}</span>}</div></div>
+            <div style={{fontFamily:"'DM Mono',monospace",fontWeight:500,fontSize:13,color:item._t==='income'?C.green:C.red,flexShrink:0}}>{item._t==='income'?'+':'-'}{fmt(disp)}</div>
+            {confirm===item.id?(<div style={{display:'flex',gap:4,flexShrink:0}}><button onClick={()=>{item._t==='income'?onDeleteIncome(item.id):onDelete(item.id);setConfirm(null);}} style={{background:C.red,border:'none',color:'#fff',borderRadius:50,padding:'5px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}>✓</button><button onClick={()=>setConfirm(null)} style={{background:'rgba(255,255,255,0.06)',border:'none',color:C.muted,borderRadius:50,padding:'5px 10px',cursor:'pointer',fontSize:11}}>✕</button></div>):<button onClick={()=>setConfirm(item.id)} style={{background:'transparent',border:'none',color:C.dim,cursor:'pointer',fontSize:14,padding:'4px',flexShrink:0}}>🗑</button>}
+          </div>
+        );
+      })}
+      {all.length===0&&<div style={{textAlign:'center',padding:'48px 20px'}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:12,color:C.muted,letterSpacing:'0.12em',textTransform:'uppercase'}}>Nenhum lançamento</div></div>}
+    </div>
+  );
+}
+
+function SettingsModal({user,wallets,onSaveWallets,onLogout,onClose}){
+  const[local,setLocal]=useState(()=>wallets.map(w=>({...w})));
+  const[adding,setAdding]=useState(false);
+  const[newName,setNewName]=useState('');
+  const[newColor,setNewColor]=useState(CARD_COLORS[0]);
+  const[newCredit,setNewCredit]=useState(true);
+  const[newClosing,setNewClosing]=useState('');
+  const[confirmDel,setConfirmDel]=useState(null);
+  const addCard=()=>{if(!newName.trim())return;setLocal(ws=>[...ws,{id:uid(),label:newName.trim(),short:newName.trim().slice(0,12),color:newColor,isCredit:newCredit,closingDay:parseInt(newClosing)||0}]);setNewName('');setNewClosing('');setAdding(false);};
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'flex-end',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{width:'100%',maxWidth:480,margin:'0 auto',background:C.modal,borderRadius:'22px 22px 0 0',padding:22,maxHeight:'88vh',overflowY:'auto',borderTop:`1px solid ${C.gBorder}`,fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:22}}>
+          <span style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,color:G,letterSpacing:'0.14em',textTransform:'uppercase'}}>Configurações</span>
+          <button onClick={onClose} style={{background:'rgba(255,255,255,0.06)',border:'none',color:C.muted,cursor:'pointer',borderRadius:50,width:32,height:32,fontSize:16}}>✕</button>
+        </div>
+        <div style={sLbl}>Cartões e Carteiras</div>
+        {local.map(w=>(
+          <div key={w.id} style={{...sCard,marginBottom:8}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:w.isCredit?10:0}}>
+              <div style={{width:9,height:9,borderRadius:'50%',background:w.color,boxShadow:`0 0 6px ${w.color}88`}}/>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:C.text}}>{w.label}</div><div style={{fontSize:9,color:C.muted,letterSpacing:'0.1em',textTransform:'uppercase',marginTop:2}}>{w.isCredit?'Crédito':'PIX / Débito'}</div></div>
+              {confirmDel===w.id?(<div style={{display:'flex',gap:4}}><button onClick={()=>{setLocal(ws=>ws.filter(ww=>ww.id!==w.id));setConfirmDel(null);}} style={{background:C.red,border:'none',color:'#fff',borderRadius:50,padding:'4px 10px',cursor:'pointer',fontSize:11,fontWeight:700}}>Excluir</button><button onClick={()=>setConfirmDel(null)} style={{background:'rgba(255,255,255,0.07)',border:'none',color:C.muted,borderRadius:50,padding:'4px 8px',cursor:'pointer',fontSize:11}}>✕</button></div>):<button onClick={()=>setConfirmDel(w.id)} style={{background:'transparent',border:'none',color:C.dim,cursor:'pointer',fontSize:14,padding:'4px'}}>🗑</button>}
+            </div>
+            {w.isCredit&&(<div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:11,color:C.muted,flex:1}}>Dia de fechamento</span><input type="number" min="1" max="31" placeholder="—" value={w.closingDay||''} onChange={e=>setLocal(ws=>ws.map(ww=>ww.id===w.id?{...ww,closingDay:parseInt(e.target.value)||0}:ww))} style={{...sInput,width:64,textAlign:'center',padding:'8px 6px',fontSize:14,fontFamily:"'DM Mono',monospace"}}/></div>)}
+          </div>
+        ))}
+        {!adding?(<button onClick={()=>setAdding(true)} style={{...oBtn,marginBottom:16}}>+ Adicionar Cartão</button>):(
+          <div style={{...sCard,marginBottom:16}}>
+            <div style={{fontSize:10,fontWeight:700,color:G,letterSpacing:'0.14em',textTransform:'uppercase',marginBottom:14}}>Novo Cartão</div>
+            <div style={{marginBottom:10}}><div style={sLbl}>Nome</div><input style={sInput} placeholder="Ex: Itaú, Inter..." value={newName} onChange={e=>setNewName(e.target.value)}/></div>
+            <div style={{marginBottom:10}}><div style={sLbl}>Cor</div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{CARD_COLORS.map(c=><button key={c} onClick={()=>setNewColor(c)} style={{width:28,height:28,borderRadius:'50%',background:c,border:`3px solid ${newColor===c?'#fff':'transparent'}`,cursor:'pointer'}}/>)}</div></div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+              <div><div style={sLbl}>Tipo</div><div style={{display:'flex',gap:6}}>{[[true,'💳 Crédito'],[false,'💸 PIX']].map(([v,l])=>(<button key={String(v)} onClick={()=>setNewCredit(v)} style={{flex:1,padding:'9px 4px',border:`1px solid ${newCredit===v?G:C.border}`,borderRadius:50,cursor:'pointer',fontFamily:'inherit',fontSize:11,fontWeight:700,background:newCredit===v?C.gBg:'transparent',color:newCredit===v?G:C.muted}}>{l}</button>))}</div></div>
+              {newCredit&&<div><div style={sLbl}>Fecha dia</div><input type="number" min="1" max="31" placeholder="ex: 10" value={newClosing} onChange={e=>setNewClosing(e.target.value)} style={{...sInput,fontFamily:"'DM Mono',monospace"}}/></div>}
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}><button onClick={()=>{setAdding(false);setNewName('');setNewClosing('');}} style={oBtn}>Cancelar</button><button onClick={addCard} style={pBtn(GG)}>Adicionar</button></div>
+          </div>
+        )}
+        <button onClick={()=>onSaveWallets(local)} style={{...pBtn(GG),marginBottom:10}}>✓ Salvar</button>
+        <button onClick={onLogout} style={oBtn}>Trocar usuário / Sair</button>
+      </div>
+    </div>
+  );
+}
+
+function ExportModal({user,expenses,incomes,month,wallets,onClose}){
+  const[copied,setCopied]=useState(false);
+  const text=buildWA(user,expenses,incomes,month,wallets);
+  const copy=async()=>{try{await navigator.clipboard.writeText(text);setCopied(true);setTimeout(()=>setCopied(false),2000);}catch{}};
+  const openPDF=()=>{window.open(URL.createObjectURL(new Blob([buildPDF(user,expenses,incomes,month,wallets)],{type:'text/html'})),'_blank');};
+  return(
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'flex-end',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{width:'100%',maxWidth:480,margin:'0 auto',background:C.modal,borderRadius:'22px 22px 0 0',padding:22,borderTop:`1px solid ${C.gBorder}`,fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+          <span style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:700,color:G,letterSpacing:'0.14em',textTransform:'uppercase'}}>Exportar</span>
+          <button onClick={onClose} style={{background:'rgba(255,255,255,0.06)',border:'none',color:C.muted,cursor:'pointer',borderRadius:50,width:32,height:32,fontSize:16}}>✕</button>
+        </div>
+        <div style={sLbl}>Texto para WhatsApp</div>
+        <textarea readOnly value={text} style={{...sInput,height:180,resize:'none',fontSize:11,fontFamily:"'DM Mono',monospace",lineHeight:1.7,marginBottom:12}}/>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+          <button onClick={copy} style={{...pBtn(copied?C.green:'rgba(255,255,255,0.07)',copied?'#fff':C.muted),fontSize:12}}>{copied?'✓ Copiado':'📋 Copiar'}</button>
+          <button onClick={openPDF} style={{...pBtn(GG),fontSize:12}}>🖨️ PDF</button>
+        </div>
+        <div style={{fontSize:9,color:C.dim,textAlign:'center',letterSpacing:'0.06em',textTransform:'uppercase'}}>PDF → Ctrl+P / ⌘+P para salvar</div>
+      </div>
+    </div>
+  );
+}
+
+function NI({id,icon,label,tab,setTab}){
+  const a=tab===id;
+  return(<button onClick={()=>setTab(id)} style={{flex:1,border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',padding:'6px 0 0',display:'flex',flexDirection:'column',alignItems:'center',gap:3}}><span style={{fontSize:19,opacity:a?1:0.28,transition:'opacity 0.15s'}}>{icon}</span><span style={{fontSize:8,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:a?G:C.dim,fontFamily:"'DM Sans',system-ui,sans-serif"}}>{label}</span></button>);
+}
+
+function BottomNav({tab,setTab,onSettings}){
+  return(
+    <div style={{flexShrink:0,position:'relative',background:'#0A0A0A',borderTop:'1px solid rgba(200,168,75,0.1)',display:'flex',alignItems:'center',padding:'10px 0 18px',overflow:'visible'}}>
+      <button onClick={()=>setTab('add')} style={{position:'absolute',top:-26,left:'50%',width:52,height:52,borderRadius:'50%',background:GG,boxShadow:'0 -4px 28px rgba(200,168,75,0.5)',border:'2px solid rgba(0,0,0,0.2)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,fontWeight:900,color:'#070707',zIndex:10,transform:`translateX(-50%) scale(${tab==='add'?1.1:1})`,transition:'transform 0.15s ease',fontFamily:'system-ui'}}>+</button>
+      <NI id="dashboard" icon="🏠" label="Início" tab={tab} setTab={setTab}/>
+      <NI id="reports" icon="📊" label="Relatório" tab={tab} setTab={setTab}/>
+      <div style={{flex:1}}/>
+      <NI id="history" icon="📋" label="Histórico" tab={tab} setTab={setTab}/>
+      <button onClick={onSettings} style={{flex:1,border:'none',background:'transparent',cursor:'pointer',fontFamily:'inherit',padding:'6px 0 0',display:'flex',flexDirection:'column',alignItems:'center',gap:3}}><span style={{fontSize:19,opacity:0.28}}>⚙️</span><span style={{fontSize:8,fontWeight:700,letterSpacing:'0.1em',textTransform:'uppercase',color:C.dim,fontFamily:"'DM Sans',system-ui,sans-serif"}}>Config</span></button>
+    </div>
+  );
+}
+
+function App(){
+  const[ready,setReady]=useState(false);
+  const[loggedIn,setLoggedIn]=useState(false);
+  const[user,setUser]=useState('gabriel');
+  const[tab,setTab]=useState('dashboard');
+  const[month,setMonth]=useState(getMonthKey);
+  const[expenses,setExpenses]=useState([]);
+  const[incomes,setIncomes]=useState([]);
+  const[allWallets,setAllWallets]=useState({gabriel:[],mariana:[]});
+  const[showSettings,setShowSettings]=useState(false);
+  const[showExport,setShowExport]=useState(false);
+
+  useEffect(()=>{
+    (async()=>{
+      const[e,i,w,s]=await Promise.all([stGet('fin_expenses'),stGet('fin_incomes'),stGet('fin_wallets'),stGet('fin_session')]);
+      setExpenses(Array.isArray(e)?e:[]);
+      setIncomes(Array.isArray(i)?i:[]);
+      setAllWallets(w?.gabriel&&w?.mariana?w:JSON.parse(JSON.stringify(DEFAULT_WALLETS)));
+      if(s?.loggedIn&&s?.user){setUser(s.user);setLoggedIn(true);}
+      setReady(true);
+    })();
+  },[]);
+
+  const handleLogin=async(u)=>{setUser(u);setLoggedIn(true);await stSet('fin_session',{loggedIn:true,user:u});};
+  const handleLogout=async()=>{setLoggedIn(false);setShowSettings(false);await stSet('fin_session',{loggedIn:false,user:null});};
+  const saveWallets=async(nw)=>{const up={...allWallets,[user]:nw};setAllWallets(up);await stSet('fin_wallets',up);setShowSettings(false);};
+  const addExpense=async(exp)=>{const l=[...expenses,{...exp,id:uid(),user}];setExpenses(l);await stSet('fin_expenses',l);};
+  const deleteExpense=async(id)=>{const l=expenses.filter(e=>e.id!==id);setExpenses(l);await stSet('fin_expenses',l);};
+  const addIncome=async(inc)=>{const l=[...incomes,{...inc,id:uid(),user}];setIncomes(l);await stSet('fin_incomes',l);};
+  const deleteIncome=async(id)=>{const l=incomes.filter(i=>i.id!==id);setIncomes(l);await stSet('fin_incomes',l);};
+
+  const wallets=allWallets[user]?.length?allWallets[user]:DEFAULT_WALLETS[user];
+  const uExp=expenses.filter(e=>e.user===user&&e.month===month);
+  const uInc=incomes.filter(i=>i.user===user&&i.month===month);
+
+  if(!ready)return(<div style={{height:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:C.bg,gap:14}}><div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:G,letterSpacing:'0.2em',textTransform:'uppercase'}}>Finanças</div><div style={{width:36,height:1,background:GG,borderRadius:1}}/></div>);
+  if(!loggedIn)return <LoginScreen onLogin={handleLogin}/>;
+  return(
+    <div style={{maxWidth:480,margin:'0 auto',height:'100vh',display:'flex',flexDirection:'column',background:C.bg,color:C.text,fontFamily:"'DM Sans',system-ui,sans-serif"}}>
+      <Header user={user} month={month} setMonth={setMonth}/>
+      <div style={{flex:1,overflowY:'auto'}}>
+        {tab==='dashboard'&&<Dashboard expenses={uExp} incomes={uInc} wallets={wallets}/>}
+        {tab==='add'&&<AddScreen user={user} wallets={wallets} onAddExpense={addExpense} onAddIncome={addIncome}/>}
+        {tab==='reports'&&<ReportsScreen expenses={uExp} incomes={uInc} month={month} wallets={wallets} onExport={()=>setShowExport(true)}/>}
+        {tab==='history'&&<HistoryScreen expenses={uExp} incomes={uInc} wallets={wallets} onDelete={deleteExpense} onDeleteIncome={deleteIncome}/>}
+      </div>
+      <BottomNav tab={tab} setTab={setTab} onSettings={()=>setShowSettings(true)}/>
+      {showSettings&&<SettingsModal user={user} wallets={wallets} onSaveWallets={saveWallets} onLogout={handleLogout} onClose={()=>setShowSettings(false)}/>}
+      {showExport&&<ExportModal user={user} expenses={uExp} incomes={uInc} month={month} wallets={wallets} onClose={()=>setShowExport(false)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
