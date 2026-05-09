@@ -87,11 +87,13 @@ function computeTargetMonth(dateStr,wallet,payType){
   const base=`${y}-${String(m).padStart(2,'0')}`;
   if(payType!=='credit'&&payType!=='credit_inst')return base;
   if(!wallet?.isCredit||!wallet?.closingDay)return base;
-  // Até o dia de fechamento → fatura deste mês → pago no MÊS SEGUINTE (+1)
-  // Após o dia de fechamento → fatura do próximo mês → pago em DOIS MESES (+2)
-  const shift=d>wallet.closingDay?2:1;
-  const nd=new Date(y,m-1+shift,1);
-  return`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+  // Se passou do fechamento → vai pra fatura do mês seguinte
+  // Se ainda não passou → fica na fatura deste mês
+  if(d>wallet.closingDay){
+    const nd=new Date(y,m,1); // m é 1-based, JS é 0-based → already next month
+    return`${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+  }
+  return base;
 }
 
 function buildWA(user,expenses,incomes,month,wallets){
@@ -325,7 +327,7 @@ function AddScreen({user,wallets,onAddExpense,onAddExpenses,onAddIncome}){
           {(payType==='credit'||payType==='credit_inst')&&selW?.closingDay>0&&(
             <div style={{marginBottom:14,padding:'10px 14px',borderRadius:10,background:isAfterClose?'rgba(192,57,43,0.1)':'rgba(61,153,112,0.1)',border:`1px solid ${isAfterClose?C.red:C.green}33`}}>
               <div style={{fontSize:11,fontWeight:700,color:isAfterClose?C.red:C.green,letterSpacing:'0.06em',textTransform:'uppercase'}}>
-                {isAfterClose?`⚠ Após fechamento · cai em ${parseMonth(targetM)}`:`✓ Será pago em ${parseMonth(targetM)}`}
+                {isAfterClose?`⚠ Passou do fechamento · fatura de ${parseMonth(targetM)}`:`✓ Fatura de ${parseMonth(targetM)}`}
               </div>
               <div style={{fontSize:10,color:C.muted,marginTop:3}}>
                 {isAfterClose?`Dia ${date.split('-')[2]} › já passou do fechamento (dia ${selW.closingDay})`:`Fecha dia ${selW.closingDay} · pagamento em ${parseMonth(targetM)}`}
