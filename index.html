@@ -20,6 +20,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -122,6 +123,61 @@ function buildPDF(user,expenses,incomes,month,wallets){
   if(pix.length){rows+=`<tr class="sec"><td colspan="3">📅 PIX Agendados</td><td>${fmt(pix.reduce((s,e)=>s+e.amount,0))}</td></tr>`;pix.forEach(e=>{rows+=`<tr><td class="pl">${e.description}</td><td>${fmtDate(e.dueDate)}</td><td></td><td>${fmt(e.amount)}</td></tr>`;});}
   if(incomes.length){rows+=`<tr class="sec g"><td colspan="3">💰 Receitas</td><td>${fmt(recs)}</td></tr>`;incomes.forEach(i=>{rows+=`<tr><td class="pl">${i.description}</td><td>${fmtDate(i.date)}</td><td>${i.category||''}</td><td class="g">${fmt(i.amount)}</td></tr>`;});}
   return`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatório ${parseMonth(month)}</title><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#111;color:#eee;padding:32px;max-width:700px;margin:0 auto;font-size:14px}h1{font-size:24px;font-weight:800;color:#C8A84B;margin-bottom:4px;letter-spacing:.1em}.sub{color:#666;font-size:12px;margin-bottom:24px}.sum{display:flex;gap:12px;margin-bottom:28px}.si{flex:1;background:#1a1a1a;border:1px solid rgba(200,168,75,0.2);border-radius:10px;padding:14px}.lbl{font-size:10px;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:.1em;margin-bottom:6px}.val{font-size:20px;font-weight:700}table{width:100%;border-collapse:collapse}tr.sec td{font-weight:700;background:#1a1a1a;padding:10px 12px;border-top:1px solid rgba(200,168,75,0.15);font-size:13px}td{padding:8px 12px;border-bottom:1px solid #1a1a1a;vertical-align:top;font-size:13px}td:last-child{text-align:right;white-space:nowrap}small{font-size:11px;display:block}.g{color:#3D9970}.r{color:#C0392B}.pl{padding-left:20px}@media print{body{background:#fff;color:#111}.si{background:#f9f9f9;border-color:#ddd}tr.sec td{background:#f0f0f0}}</style></head><body><h1>FINANÇAS</h1><div class="sub">Relatório ${parseMonth(month)} · ${user==='gabriel'?'Gabriel':'Mariana'} · ${new Date().toLocaleDateString('pt-BR')}</div><div class="sum"><div class="si"><div class="lbl">Receitas</div><div class="val g">${fmt(recs)}</div></div><div class="si"><div class="lbl">Gastos</div><div class="val r">${fmt(total)}</div></div><div class="si"><div class="lbl">Saldo</div><div class="val" style="color:${saldo>=0?'#3D9970':'#C0392B'}">${fmt(saldo)}</div></div></div><table>${rows}</table><script>window.onload=()=>window.print();<\/script></body></html>`;
+}
+
+// ── EXCEL EXPORT ─────────────────────────────────────────────
+function exportToExcel(user,allExpenses,allIncomes,wallets){
+  const XL=window.XLSX;if(!XL){alert('Aguarde carregar...');return;}
+  const ptMap={credit:'Crédito',credit_inst:'Parcelado',pix_now:'PIX Agora',pix_future:'PIX Futuro'};
+  const exps=allExpenses.filter(e=>e.user===user);
+  const incs=allIncomes.filter(i=>i.user===user);
+  const wb=XL.utils.book_new();
+  // Gastos
+  const gR=[['Descrição','Valor R$','Data','Mês Fatura','Carteira','Tipo Pagamento','Categoria','Reembolso R$','Obs']];
+  exps.forEach(e=>gR.push([e.description,e.amount,e.date,e.month,resolveW(wallets,e.wallet).label,ptMap[e.paymentType]||e.paymentType,e.category,e.reembolso||0,e.notes||'']));
+  XL.utils.book_append_sheet(wb,XL.utils.aoa_to_sheet(gR),'Gastos');
+  // Receitas
+  const rR=[['Descrição','Valor R$','Data','Mês','Categoria','Obs']];
+  incs.forEach(i=>rR.push([i.description,i.amount,i.date,i.month,i.category,i.notes||'']));
+  XL.utils.book_append_sheet(wb,XL.utils.aoa_to_sheet(rR),'Receitas');
+  // Referência de carteiras
+  const wR=[['ID (não altere)','Nome do Cartão (use exatamente este)','Tipo','Fecha Dia']];
+  wallets.forEach(w=>wR.push([w.id,w.label,w.isCredit?'Crédito':'PIX',w.closingDay||'—']));
+  XL.utils.book_append_sheet(wb,XL.utils.aoa_to_sheet(wR),'Carteiras (referência)');
+  XL.writeFile(wb,`financas_${user}_${today()}.xlsx`);
+}
+
+async function importFromExcel(file,wallets){
+  return new Promise((resolve,reject)=>{
+    const XL=window.XLSX;
+    const reader=new FileReader();
+    reader.onload=(e)=>{
+      try{
+        const wb=XL.read(e.target.result,{type:'array'});
+        const ptMap={'Crédito':'credit','Parcelado':'credit_inst','PIX Agora':'pix_now','PIX Futuro':'pix_future'};
+        const newExp=[],newInc=[];
+        if(wb.SheetNames.includes('Gastos')){
+          XL.utils.sheet_to_json(wb.Sheets['Gastos']).forEach(row=>{
+            if(!row['Descrição']||!row['Valor R$'])return;
+            const wLabel=String(row['Carteira']||'');
+            const wallet=wallets.find(w=>w.label===wLabel)||wallets[0];
+            const date=String(row['Data']||today());
+            newExp.push({id:uid(),description:String(row['Descrição']),amount:parseFloat(row['Valor R$'])||0,date,month:String(row['Mês Fatura']||dateToMonth(date)),wallet:wallet?.id||'',paymentType:ptMap[String(row['Tipo Pagamento']||'')]||'credit',category:String(row['Categoria']||'📦 Outros'),reembolso:parseFloat(row['Reembolso R$'])||0,notes:String(row['Obs']||'')});
+          });
+        }
+        if(wb.SheetNames.includes('Receitas')){
+          XL.utils.sheet_to_json(wb.Sheets['Receitas']).forEach(row=>{
+            if(!row['Descrição']||!row['Valor R$'])return;
+            const date=String(row['Data']||today());
+            newInc.push({id:uid(),description:String(row['Descrição']),amount:parseFloat(row['Valor R$'])||0,date,month:String(row['Mês']||dateToMonth(date)),category:String(row['Categoria']||'📦 Outros'),notes:String(row['Obs']||'')});
+          });
+        }
+        resolve({newExp,newInc});
+      }catch(err){reject(err);}
+    };
+    reader.onerror=reject;
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 function LoginScreen({onLogin}){
@@ -426,7 +482,7 @@ function HistoryScreen({expenses,incomes,wallets,onDelete,onDeleteIncome}){
   );
 }
 
-function SettingsModal({user,wallets,onSaveWallets,onLogout,onClose}){
+function SettingsModal({user,wallets,allExpenses,allIncomes,onSaveWallets,onImport,onLogout,onClose}){
   const[local,setLocal]=useState(()=>wallets.map(w=>({...w})));
   const[adding,setAdding]=useState(false);
   const[newName,setNewName]=useState('');
@@ -434,6 +490,7 @@ function SettingsModal({user,wallets,onSaveWallets,onLogout,onClose}){
   const[newCredit,setNewCredit]=useState(true);
   const[newClosing,setNewClosing]=useState('');
   const[confirmDel,setConfirmDel]=useState(null);
+  const[importMsg,setImportMsg]=useState('');
   const addCard=()=>{if(!newName.trim())return;setLocal(ws=>[...ws,{id:uid(),label:newName.trim(),short:newName.trim().slice(0,12),color:newColor,isCredit:newCredit,closingDay:parseInt(newClosing)||0}]);setNewName('');setNewClosing('');setAdding(false);};
   return(
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'flex-end',zIndex:200}} onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
@@ -466,6 +523,29 @@ function SettingsModal({user,wallets,onSaveWallets,onLogout,onClose}){
           </div>
         )}
         <button onClick={()=>onSaveWallets(local)} style={{...pBtn(GG),marginBottom:10}}>✓ Salvar</button>
+
+        {/* Excel Import/Export */}
+        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:16,marginTop:4,marginBottom:12}}>
+          <div style={sLbl}>Planilha Excel</div>
+          <p style={{fontSize:11,color:C.dim,marginBottom:12,lineHeight:1.8}}>Exporte os dados, preencha no Excel e importe de volta para registrar em massa.</p>
+          <button onClick={()=>exportToExcel(user,allExpenses,allIncomes,local)} style={{...pBtn('rgba(61,153,112,0.15)','#3D9970'),marginBottom:8,fontSize:12,border:'1px solid rgba(61,153,112,0.4)'}}>⬇ Exportar planilha atual</button>
+          <label style={{display:'block',width:'100%'}}>
+            <div style={{...oBtn,textAlign:'center',cursor:'pointer',fontSize:12}}>⬆ Importar planilha preenchida</div>
+            <input type="file" accept=".xlsx,.xls" style={{display:'none'}} onChange={async(e)=>{
+              const file=e.target.files[0];if(!file)return;
+              try{
+                const{newExp,newInc}=await importFromExcel(file,local);
+                await onImport(newExp,newInc);
+                setImportMsg(`✓ ${newExp.length} gasto(s) e ${newInc.length} receita(s) importados!`);
+              }catch(err){setImportMsg('❌ Erro ao ler o arquivo. Verifique o formato.');}
+              e.target.value='';
+              setTimeout(()=>setImportMsg(''),4000);
+            }}/>
+          </label>
+          {importMsg&&<div style={{marginTop:8,fontSize:11,fontWeight:700,color:importMsg.startsWith('✓')?C.green:C.red,letterSpacing:'0.04em'}}>{importMsg}</div>}
+          <div style={{fontSize:10,color:C.dim,marginTop:8,lineHeight:1.7}}>💡 A aba "Carteiras (referência)" no Excel mostra os nomes exatos que devem ser usados na coluna Carteira.</div>
+        </div>
+
         <button onClick={onLogout} style={oBtn}>Trocar usuário / Sair</button>
       </div>
     </div>
@@ -545,6 +625,12 @@ function App(){
   const deleteExpense=async(id)=>{const l=expenses.filter(e=>e.id!==id);setExpenses(l);await stSet('fin_expenses',l);};
   const addIncome=async(inc)=>{const l=[...incomes,{...inc,id:uid(),user}];setIncomes(l);await stSet('fin_incomes',l);};
   const deleteIncome=async(id)=>{const l=incomes.filter(i=>i.id!==id);setIncomes(l);await stSet('fin_incomes',l);};
+  const importData=async(newExp,newInc)=>{
+    const ue=[...expenses,...newExp.map(e=>({...e,user}))];
+    const ui=[...incomes,...newInc.map(i=>({...i,user}))];
+    setExpenses(ue);setIncomes(ui);
+    await stSet('fin_expenses',ue);await stSet('fin_incomes',ui);
+  };
 
   const wallets=allWallets[user]?.length?allWallets[user]:DEFAULT_WALLETS[user];
   const uExp=expenses.filter(e=>e.user===user&&e.month===month);
@@ -562,7 +648,7 @@ function App(){
         {tab==='history'&&<HistoryScreen expenses={uExp} incomes={uInc} wallets={wallets} onDelete={deleteExpense} onDeleteIncome={deleteIncome}/>}
       </div>
       <BottomNav tab={tab} setTab={setTab} onSettings={()=>setShowSettings(true)}/>
-      {showSettings&&<SettingsModal user={user} wallets={wallets} onSaveWallets={saveWallets} onLogout={handleLogout} onClose={()=>setShowSettings(false)}/>}
+      {showSettings&&<SettingsModal user={user} wallets={wallets} allExpenses={expenses} allIncomes={incomes} onSaveWallets={saveWallets} onImport={importData} onLogout={handleLogout} onClose={()=>setShowSettings(false)}/>}
       {showExport&&<ExportModal user={user} expenses={uExp} incomes={uInc} month={month} wallets={wallets} onClose={()=>setShowExport(false)}/>}
     </div>
   );
